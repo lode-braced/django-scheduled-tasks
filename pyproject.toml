@@ -2,6 +2,7 @@
 name = "django-scheduled-tasks"
 version = "0"
 description = "Task scheduling for Django 6.0 task backends"
+readme = "README.md"
 requires-python = ">=3.12"
 authors = [
     { name = "Lode Braced", email = "lode@braced.dev" },
