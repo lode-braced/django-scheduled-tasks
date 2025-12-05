@@ -23,6 +23,11 @@ classifiers = [
     "Framework :: Django :: 6.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/lode-braced/dvd-rw"
+
+[tool.uv.build-backend]
+
 [dependency-groups]
 dev = [
     "freezegun>=1.5.5",
