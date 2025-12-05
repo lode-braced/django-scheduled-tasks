@@ -1,12 +1,26 @@
 [project]
 name = "django-scheduled-tasks"
-version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
+version = "0"
+description = "Task scheduling for Django 6.0 task backends"
+requires-python = ">=3.12"
+authors = [
+    { name = "Lode Braced", email = "lode@braced.dev"},
+]
 dependencies = [
     "django>=6.0",
     "django-tasks>=0.10.0",
     "pydantic>=2.12.5",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+    "Framework :: Django",
+    "Framework :: Django :: 6.0",
 ]
 
 [dependency-groups]
