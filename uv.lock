@@ -46,7 +46,7 @@ wheels = [
 [[package]]
 name = "django-scheduled-tasks"
 version = "0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "django" },
     { name = "django-tasks" },

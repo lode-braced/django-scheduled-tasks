@@ -4,7 +4,7 @@ version = "0"
 description = "Task scheduling for Django 6.0 task backends"
 requires-python = ">=3.12"
 authors = [
-    { name = "Lode Braced", email = "lode@braced.dev"},
+    { name = "Lode Braced", email = "lode@braced.dev" },
 ]
 dependencies = [
     "django>=6.0",
@@ -26,7 +26,14 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/lode-braced/dvd-rw"
 
+
+[build-system]
+requires = ["uv_build>=0.8.5,<0.9.0"]
+build-backend = "uv_build"
+
 [tool.uv.build-backend]
+module-name = "django_scheduled_tasks"
+module-root = ""
 
 [dependency-groups]
 dev = [
