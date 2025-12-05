@@ -156,19 +156,30 @@ def periodic_task(
     call_args: tuple = (),
     call_kwargs: dict[str, Any] = None,
     schedule_store: TaskScheduler = scheduler,
-) -> Callable[[Task], Task]:
+    task: Task = None,
+) -> Callable[[Task], Task] | Task:
     """
-    Wrap a task to be executed periodically.
+    Register a task to be executed periodically.
+
+    Can be used as a decorator or called directly with a task argument:
+        @periodic_task(interval=timedelta(seconds=60))
+        @task
+        def my_task(): ...
+
+        # Or:
+        periodic_task(interval=timedelta(seconds=60), task=my_task)
     """
 
-    def wrapper(task: Task) -> Task:
+    def register(t: Task) -> Task:
         schedule = PeriodicSchedule(
-            task=task,
+            task=t,
             period=interval,
             task_args=call_args,
             task_kwargs=call_kwargs or {},
         )
         schedule_store.add_scheduled_task(schedule)
-        return task
+        return t
 
-    return wrapper
+    if task is not None:
+        return register(task)
+    return register
