@@ -1,0 +1,37 @@
+name: test.yml
+on: [ push ]
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: 'auto'
+
+      - name: Install Python dependencies
+        run: uv sync --locked --all-extras --dev
+      - name: Run unit tests
+        run: uv run pytest
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: 'auto'
+      - name: Install ruff
+        run: uv tool install ruff
+      - name: check formatting
+        run: ruff format --check django_scheduled_tasks tests
+      - name: lint code
+        run: ruff check django_scheduled_tasks tests
