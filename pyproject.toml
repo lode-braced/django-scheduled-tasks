@@ -1,0 +1,19 @@
+[project]
+name = "django-scheduled-tasks"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=6.0",
+    "django-tasks>=0.10.0",
+    "pydantic>=2.12.5",
+]
+
+[dependency-groups]
+dev = [
+    "freezegun>=1.5.5",
+    "pytest-django>=4.11.1",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
