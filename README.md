@@ -8,7 +8,7 @@ A Django app that allows scheduling for the
 First, make sure your
 [task backend is setup](https://docs.djangoproject.com/en/6.0/topics/tasks/#configuring-a-task-backend).
 I'd recommend starting with the database backend in
-[django-taks](https://github.com/RealOrangeOne/django-tasks).
+[django-tasks](https://github.com/RealOrangeOne/django-tasks).
 
 Then, add the scheduled tasks:
 
