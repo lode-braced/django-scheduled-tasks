@@ -4,11 +4,11 @@ on:
     tags:
       - 'v0.*'
       - '0.*'
-    branches-ignore:
-    - '!main'
+
 
 jobs:
   create_release:
+    environment: main
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
