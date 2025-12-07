@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Self
 
 from django.db import models
-from django.utils import timezone
 
 from django_scheduled_tasks.base import TaskSchedule
 

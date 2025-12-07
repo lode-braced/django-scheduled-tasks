@@ -112,7 +112,9 @@ def test_periodic_schedule_avoids_slippage():
     # Even though now is 11 seconds later, next should be previous + 10s = 12:00:10
     # But since 12:00:10 <= now, it advances to 12:00:20
     next_scheduled = schedule.get_next_scheduled_time(previous, now_time)
-    assert next_scheduled == datetime.datetime(2025, 1, 1, 12, 0, 20, tzinfo=datetime.UTC)
+    assert next_scheduled == datetime.datetime(
+        2025, 1, 1, 12, 0, 20, tzinfo=datetime.UTC
+    )
 
 
 def test_periodic_schedule_thundering_herd_prevention():
@@ -128,7 +130,9 @@ def test_periodic_schedule_thundering_herd_prevention():
     now_time = datetime.datetime(2025, 1, 1, 12, 0, 55, tzinfo=datetime.UTC)
     next_scheduled = schedule.get_next_scheduled_time(previous, now_time)
     # Should skip to next future time (12:01:00), not run 5 times
-    assert next_scheduled == datetime.datetime(2025, 1, 1, 12, 1, 0, tzinfo=datetime.UTC)
+    assert next_scheduled == datetime.datetime(
+        2025, 1, 1, 12, 1, 0, tzinfo=datetime.UTC
+    )
 
 
 # --- CrontabSchedule tests ---
@@ -149,7 +153,9 @@ def test_cron_task_registration():
     assert schedule.timezone_str is None
     with freeze_time("2025-01-01"):
         # First run (no previous) should wait for next cron slot.
-        assert schedule.get_next_scheduled_time(None, timezone.now()) == datetime.datetime(
+        assert schedule.get_next_scheduled_time(
+            None, timezone.now()
+        ) == datetime.datetime(
             2025,
             1,
             1,
@@ -173,7 +179,9 @@ def test_cron_task_registration_with_timezone():
     assert schedule.cron_schedule == "0 9 * * *"
     assert schedule.timezone_str == "Europe/Brussels"
     with freeze_time("2025-01-01"):
-        assert schedule.get_next_scheduled_time(None, timezone.now()) == datetime.datetime(
+        assert schedule.get_next_scheduled_time(
+            None, timezone.now()
+        ) == datetime.datetime(
             2025,
             1,
             1,
@@ -195,7 +203,9 @@ def test_cron_schedule_thundering_herd_prevention():
     now_time = datetime.datetime(2025, 1, 1, 12, 5, 30, tzinfo=datetime.UTC)
     next_scheduled = schedule.get_next_scheduled_time(previous, now_time)
     # Should skip to next future minute (12:06:00), not run 5 times
-    assert next_scheduled == datetime.datetime(2025, 1, 1, 12, 6, 0, tzinfo=datetime.UTC)
+    assert next_scheduled == datetime.datetime(
+        2025, 1, 1, 12, 6, 0, tzinfo=datetime.UTC
+    )
 
 
 # --- Scheduler loop tests ---

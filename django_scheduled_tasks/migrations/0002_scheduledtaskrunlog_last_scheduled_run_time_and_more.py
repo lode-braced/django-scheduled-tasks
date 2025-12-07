@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_scheduled_tasks', '0001_initial'),
+        ("django_scheduled_tasks", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='scheduledtaskrunlog',
-            name='last_scheduled_run_time',
+            model_name="scheduledtaskrunlog",
+            name="last_scheduled_run_time",
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='scheduledtaskrunlog',
-            name='next_scheduled_run_time',
+            model_name="scheduledtaskrunlog",
+            name="next_scheduled_run_time",
             field=models.DateTimeField(blank=True, null=True),
         ),
     ]
