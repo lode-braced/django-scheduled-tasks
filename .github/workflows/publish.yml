@@ -1,11 +1,13 @@
 name: publish.yml
 on:
-  release:
-    types:
-      - released
+  push:
+    tags:
+      - 'v*'
+      - '0.*'
 
 jobs:
   publish:
+    environment: main
     permissions:
       id-token: write
       contents: read
@@ -19,9 +21,8 @@ jobs:
         with:
           enable-cache: 'auto'
       - name: Set version
-        run: uv version $(git describe --tags)
+        run: uv version $(git describe --tags | sed 's/^v//')
       - name: run build
         run: uv build
       - name: Publish to PyPI
         run: uv publish
-
