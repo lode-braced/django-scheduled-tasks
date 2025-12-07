@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.tasks import task
 from django.utils import timezone
 
-from django_scheduled_tasks.base import periodic_task
+from django_scheduled_tasks.base import cron_task, periodic_task
 
 
 @periodic_task(interval=timedelta(seconds=5))
@@ -27,3 +27,9 @@ def greet(name: str):
     message = f"Hello, {name}!"
     print(f"[{timezone.now()}] {message}")
     return message
+
+
+@cron_task(cron_schedule="* * * * *")
+@task
+def every_minute():
+    print(f"[{timezone.now()}] Every minute cron task executed")
