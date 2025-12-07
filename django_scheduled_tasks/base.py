@@ -2,18 +2,27 @@ from __future__ import annotations
 import abc
 import datetime
 import hashlib
+import logging
 import threading
 import time
 from datetime import timedelta
 from typing import Annotated, Callable, TYPE_CHECKING, Any
+
+from dateutil import tz
+from django.db import DatabaseError, connections
 from django.tasks import Task, TaskResult
 from django.utils import timezone
-from pydantic import BaseModel, ConfigDict, PlainSerializer, PlainValidator
+from pydantic import BaseModel, ConfigDict, PlainSerializer, PlainValidator, TypeAdapter
+from pydantic_extra_types.cron import CronStr
 
 if TYPE_CHECKING:
     from .models import ScheduledTaskRunLog
 
 type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
+
+logger = logging.getLogger(__name__)
+
+cron_validator = TypeAdapter(CronStr)
 
 
 def _task_to_import_string(task: Task) -> str:
@@ -42,20 +51,19 @@ class TaskSchedule(BaseModel, abc.ABC):
     task: TaskField
 
     @abc.abstractmethod
-    def run_at(
+    def get_next_scheduled_time(
         self,
+        previous_scheduled: datetime.datetime | None,
         now: datetime.datetime,
-        last_schedule_time: datetime.datetime | None = None,
-        last_result: TaskResult | None = None,
     ) -> datetime.datetime:
         """
-        Return the next time the task for this schedule should run.
+        Calculate the next scheduled run time for this task.
+
         Args:
+            previous_scheduled: the previously scheduled run time, or None if first run.
             now: the current time, timezone-aware.
-            last_schedule_time: the last scheduled execution time of this task, if any.
-            last_result: the last scheduled execution of this task, if any. May be none even if last_schedule_time is not,
-            e.g., if the task backend does not support storing task results.
-        Returns: the next time the task should run.
+
+        Returns: the next time the task should (have) run.
         """
         ...
 
@@ -71,19 +79,49 @@ class TaskSchedule(BaseModel, abc.ABC):
 class PeriodicSchedule(TaskSchedule):
     period: timedelta
 
-    def run_at(
+    def get_next_scheduled_time(
         self,
+        previous_scheduled: datetime.datetime | None,
         now: datetime.datetime,
-        last_execution_time: datetime.datetime = None,
-        last_execution: TaskResult | None = None,
     ) -> datetime.datetime:
-        if last_execution_time is not None:
-            return last_execution_time + self.period
-        else:
+        if previous_scheduled is None:
             return now
 
+        next_time = previous_scheduled + self.period
+        while next_time <= now:
+            next_time += self.period
+        return next_time
 
-def get_last_runs(
+
+class CrontabSchedule(TaskSchedule):
+    cron_schedule: CronStr
+    timezone_str: str | None = None
+
+    def _to_target_tz(self, dt: datetime.datetime) -> datetime.datetime:
+        """Convert datetime to the target timezone for cron calculation."""
+        if self.timezone_str:
+            return dt.astimezone(tz.gettz(self.timezone_str))
+        return dt
+
+    def get_next_scheduled_time(
+        self,
+        previous_scheduled: datetime.datetime | None,
+        now: datetime.datetime,
+    ) -> datetime.datetime:
+        if previous_scheduled is None:
+            return self.cron_schedule.next_after(start_date=self._to_target_tz(now))
+
+        next_time = self.cron_schedule.next_after(
+            start_date=self._to_target_tz(previous_scheduled)
+        )
+        if next_time <= now:
+            next_time = self.cron_schedule.next_after(
+                start_date=self._to_target_tz(now)
+            )
+        return next_time
+
+
+def get_run_logs(
     task_schedules: set[TaskSchedule],
 ) -> dict[TaskSchedule, "ScheduledTaskRunLog | None"]:
     task_hash_map: dict[bytes, TaskSchedule] = {
@@ -91,9 +129,8 @@ def get_last_runs(
     }
     from .models import ScheduledTaskRunLog
 
-    last_runs = ScheduledTaskRunLog.objects.filter(task_hash__in=task_hash_map.keys())
-    run_log_map = {task_hash_map[run.task_hash]: run for run in last_runs}
-    # Return all schedules, with None for those without run logs
+    run_logs = ScheduledTaskRunLog.objects.filter(task_hash__in=task_hash_map.keys())
+    run_log_map = {task_hash_map[run.task_hash]: run for run in run_logs}
     return {schedule: run_log_map.get(schedule) for schedule in task_schedules}
 
 
@@ -103,21 +140,6 @@ class TaskScheduler:
 
     def add_scheduled_task(self, schedule: TaskSchedule):
         self.schedules.add(schedule)
-
-    def get_next_run_times(self) -> dict[TaskSchedule, datetime.datetime]:
-        task_run_logs = get_last_runs(self.schedules)
-        return {
-            schedule: schedule.run_at(
-                timezone.now(),
-                last_run_info.last_run_time if last_run_info else None,
-                schedule.task.get_result(last_run_info.last_run_task_id)
-                if last_run_info
-                and schedule.task.get_backend().supports_get_result
-                and last_run_info.last_run_task_id
-                else None,
-            )
-            for schedule, last_run_info in task_run_logs.items()
-        }
 
     def run_scheduling_loop(
         self,
@@ -130,21 +152,60 @@ class TaskScheduler:
         from .models import ScheduledTaskRunLog
 
         while not shutdown_event.is_set():
-            next_run_times = self.get_next_run_times()
-            for schedule, next_run_time in next_run_times.items():
-                if next_run_time <= timezone.now():
-                    task_result: TaskResult = schedule.task.enqueue(
-                        *schedule.task_args, **schedule.task_kwargs
+            now = timezone.now()
+            run_logs = get_run_logs(self.schedules)
+
+            for schedule, run_log in run_logs.items():
+                next_scheduled = run_log.next_scheduled_run_time if run_log else None
+
+                try:
+                    if next_scheduled is None:
+                        next_scheduled = schedule.get_next_scheduled_time(None, now)
+                        if next_scheduled <= now:
+                            task_result = self._enqueue_task(schedule)
+                            new_next = schedule.get_next_scheduled_time(
+                                next_scheduled, now
+                            )
+                            ScheduledTaskRunLog.create_or_update_run_log(
+                                schedule,
+                                task_id=self._get_task_id(task_result),
+                                last_run_time=now,
+                                last_scheduled_run_time=next_scheduled,
+                                next_scheduled_run_time=new_next,
+                            )
+                        else:
+                            ScheduledTaskRunLog.create_or_update_run_log(
+                                schedule,
+                                next_scheduled_run_time=next_scheduled,
+                            )
+                    elif next_scheduled <= now:
+                        task_result = self._enqueue_task(schedule)
+                        new_next = schedule.get_next_scheduled_time(next_scheduled, now)
+                        ScheduledTaskRunLog.create_or_update_run_log(
+                            schedule,
+                            task_id=self._get_task_id(task_result),
+                            last_run_time=now,
+                            last_scheduled_run_time=next_scheduled,
+                            next_scheduled_run_time=new_next,
+                        )
+                except DatabaseError as e:
+                    logger.warning(
+                        f"Database error while attempting to store task run log: {e!r}. "
+                        "Closing database connection if unusable or obsolete, will try again next cycle."
                     )
-                    # store the task id _if_ the backend supports it
-                    if task_result.task.get_backend().supports_get_result:
-                        task_id = task_result.id
-                    else:
-                        task_id = None
-                    ScheduledTaskRunLog.create_or_update_run_log(
-                        schedule, task_id, next_run_time
-                    )
+                    connections[
+                        ScheduledTaskRunLog.objects.db
+                    ].close_if_unusable_or_obsolete()
+
             time.sleep(interval.total_seconds())
+
+    def _enqueue_task(self, schedule: TaskSchedule) -> TaskResult:
+        return schedule.task.enqueue(*schedule.task_args, **schedule.task_kwargs)
+
+    def _get_task_id(self, task_result: TaskResult) -> str | None:
+        if task_result.task.get_backend().supports_get_result:
+            return task_result.id
+        return None
 
 
 scheduler = TaskScheduler()
@@ -176,6 +237,34 @@ def periodic_task(
             period=interval,
             task_args=call_args,
             task_kwargs=call_kwargs or {},
+        )
+        schedule_store.add_scheduled_task(schedule)
+        return t
+
+    if task is not None:
+        return register(task)
+    return register
+
+
+def cron_task(
+    *,
+    cron_schedule: str,
+    timezone_str: str | None = None,
+    call_args: tuple = (),
+    call_kwargs: dict[str, Any] = None,
+    schedule_store: TaskScheduler = scheduler,
+    task: Task = None,
+) -> Callable[[Task], Task] | Task:
+    # Let pydantic handle the string validation
+    cron_str = cron_validator.validate_python(cron_schedule)
+
+    def register(t: Task) -> Task:
+        schedule = CrontabSchedule(
+            task=t,
+            cron_schedule=cron_str,
+            task_args=call_args,
+            task_kwargs=call_kwargs or {},
+            timezone_str=timezone_str,
         )
         schedule_store.add_scheduled_task(schedule)
         return t
