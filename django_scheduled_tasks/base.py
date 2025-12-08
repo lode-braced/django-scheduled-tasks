@@ -141,6 +141,17 @@ class TaskScheduler:
     def add_scheduled_task(self, schedule: TaskSchedule):
         self.schedules.add(schedule)
 
+    def _cleanup_stale_run_logs(self) -> int:
+        from .models import ScheduledTaskRunLog
+
+        known_hashes = [schedule.to_sha_bytes() for schedule in self.schedules]
+        deleted, _ = ScheduledTaskRunLog.objects.exclude(
+            task_hash__in=known_hashes
+        ).delete()
+        if deleted:
+            logger.info("Cleaned up %d stale run log entries.", deleted)
+        return deleted
+
     def run_scheduling_loop(
         self,
         shutdown_event: threading.Event,
@@ -150,6 +161,8 @@ class TaskScheduler:
         Poll for scheduled tasks to run, and run them, until shut down by shutdown_event.
         """
         from .models import ScheduledTaskRunLog
+
+        self._cleanup_stale_run_logs()
 
         while not shutdown_event.is_set():
             now = timezone.now()

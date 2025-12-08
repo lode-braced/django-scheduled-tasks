@@ -253,3 +253,34 @@ def test_run_task_loop(transactional_db):
     finally:
         shutdown_event.set()
         thread.join(timeout=1)
+
+
+def test_scheduler_cleans_up_stale_run_logs_on_boot(db):
+    test_scheduler = TaskScheduler()
+    schedule = PeriodicSchedule(
+        task=foo,
+        period=timedelta(seconds=60),
+        task_args=(),
+    )
+    test_scheduler.add_scheduled_task(schedule)
+
+    # Create a run log for the current schedule
+    current_log = ScheduledTaskRunLog.objects.create(
+        task_hash=schedule.to_sha_bytes(),
+        last_run_time=timezone.now(),
+    )
+    # Create a stale run log for a schedule that no longer exists
+    stale_hash = b"\x00" * 32
+    stale_log = ScheduledTaskRunLog.objects.create(
+        task_hash=stale_hash,
+        last_run_time=timezone.now(),
+    )
+
+    assert ScheduledTaskRunLog.objects.count() == 2
+
+    deleted = test_scheduler._cleanup_stale_run_logs()
+
+    assert deleted == 1
+    assert ScheduledTaskRunLog.objects.count() == 1
+    assert ScheduledTaskRunLog.objects.filter(pk=current_log.pk).exists()
+    assert not ScheduledTaskRunLog.objects.filter(pk=stale_log.pk).exists()
