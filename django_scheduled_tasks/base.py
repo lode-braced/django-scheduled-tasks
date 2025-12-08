@@ -75,6 +75,19 @@ class TaskSchedule(BaseModel, abc.ABC):
     def __hash__(self) -> int:
         return hash(self.to_sha_bytes())
 
+    def get_task_name(self) -> str:
+        """Return a human-readable name for the task."""
+        return _task_to_import_string(self.task)
+
+    def get_schedule_type(self) -> str:
+        """Return the schedule type (class name by default)."""
+        return self.__class__.__name__
+
+    @abc.abstractmethod
+    def get_schedule_description(self) -> str:
+        """Return a human-readable description of the schedule."""
+        ...
+
 
 class PeriodicSchedule(TaskSchedule):
     period: timedelta
@@ -91,6 +104,20 @@ class PeriodicSchedule(TaskSchedule):
         while next_time <= now:
             next_time += self.period
         return next_time
+
+    def get_schedule_description(self) -> str:
+        total_seconds = int(self.period.total_seconds())
+        if total_seconds < 60:
+            return f"every {total_seconds} seconds"
+        elif total_seconds < 3600:
+            minutes = total_seconds // 60
+            return f"every {minutes} minute{'s' if minutes != 1 else ''}"
+        elif total_seconds < 86400:
+            hours = total_seconds // 3600
+            return f"every {hours} hour{'s' if hours != 1 else ''}"
+        else:
+            days = total_seconds // 86400
+            return f"every {days} day{'s' if days != 1 else ''}"
 
 
 class CrontabSchedule(TaskSchedule):
@@ -119,6 +146,11 @@ class CrontabSchedule(TaskSchedule):
                 start_date=self._to_target_tz(now)
             )
         return next_time
+
+    def get_schedule_description(self) -> str:
+        if self.timezone_str:
+            return f"{self.cron_schedule} ({self.timezone_str})"
+        return str(self.cron_schedule)
 
 
 def get_run_logs(
@@ -152,6 +184,62 @@ class TaskScheduler:
             logger.info("Cleaned up %d stale run log entries.", deleted)
         return deleted
 
+    def _process_task(
+        self,
+        schedule: TaskSchedule,
+        run_log: "ScheduledTaskRunLog | None",
+        now: datetime.datetime,
+    ) -> None:
+        """Process a single scheduled task."""
+        from .models import ScheduledTaskRunLog
+
+        # Check if disabled via run log
+        if run_log and not run_log.enabled:
+            return
+
+        next_scheduled = run_log.next_scheduled_run_time if run_log else None
+        task_name = schedule.get_task_name()
+        schedule_type = schedule.get_schedule_type()
+        schedule_description = schedule.get_schedule_description()
+
+        if next_scheduled is None:
+            next_scheduled = schedule.get_next_scheduled_time(None, now)
+            if next_scheduled <= now:
+                task_result = self._enqueue_task(schedule)
+                new_next = schedule.get_next_scheduled_time(next_scheduled, now)
+                ScheduledTaskRunLog.create_or_update_run_log(
+                    schedule,
+                    task_id=self._get_task_id(task_result),
+                    last_run_time=now,
+                    last_scheduled_run_time=next_scheduled,
+                    next_scheduled_run_time=new_next,
+                    task_name=task_name,
+                    schedule_type=schedule_type,
+                    schedule_description=schedule_description,
+                )
+            else:
+                ScheduledTaskRunLog.create_or_update_run_log(
+                    schedule,
+                    next_scheduled_run_time=next_scheduled,
+                    task_name=task_name,
+                    schedule_type=schedule_type,
+                    schedule_description=schedule_description,
+                )
+        elif next_scheduled <= now:
+            logger.info(f"Enqueing task {schedule.task}, is/was due {next_scheduled}.")
+            task_result = self._enqueue_task(schedule)
+            new_next = schedule.get_next_scheduled_time(next_scheduled, now)
+            ScheduledTaskRunLog.create_or_update_run_log(
+                schedule,
+                task_id=self._get_task_id(task_result),
+                last_run_time=now,
+                last_scheduled_run_time=next_scheduled,
+                next_scheduled_run_time=new_next,
+                task_name=task_name,
+                schedule_type=schedule_type,
+                schedule_description=schedule_description,
+            )
+
     def run_scheduling_loop(
         self,
         shutdown_event: threading.Event,
@@ -169,44 +257,11 @@ class TaskScheduler:
             run_logs = get_run_logs(self.schedules)
 
             for schedule, run_log in run_logs.items():
-                next_scheduled = run_log.next_scheduled_run_time if run_log else None
-
                 try:
-                    if next_scheduled is None:
-                        next_scheduled = schedule.get_next_scheduled_time(None, now)
-                        if next_scheduled <= now:
-                            task_result = self._enqueue_task(schedule)
-                            new_next = schedule.get_next_scheduled_time(
-                                next_scheduled, now
-                            )
-                            ScheduledTaskRunLog.create_or_update_run_log(
-                                schedule,
-                                task_id=self._get_task_id(task_result),
-                                last_run_time=now,
-                                last_scheduled_run_time=next_scheduled,
-                                next_scheduled_run_time=new_next,
-                            )
-                        else:
-                            ScheduledTaskRunLog.create_or_update_run_log(
-                                schedule,
-                                next_scheduled_run_time=next_scheduled,
-                            )
-                    elif next_scheduled <= now:
-                        logger.info(
-                            f"Enqueing task {schedule.task}, is/was due {next_scheduled}."
-                        )
-                        task_result = self._enqueue_task(schedule)
-                        new_next = schedule.get_next_scheduled_time(next_scheduled, now)
-                        ScheduledTaskRunLog.create_or_update_run_log(
-                            schedule,
-                            task_id=self._get_task_id(task_result),
-                            last_run_time=now,
-                            last_scheduled_run_time=next_scheduled,
-                            next_scheduled_run_time=new_next,
-                        )
+                    self._process_task(schedule, run_log, now)
                 except DatabaseError as e:
                     logger.warning(
-                        f"Database error while attempting to store task run log: {e!r}. "
+                        f"Database error while processing task: {e!r}. "
                         "Closing database connection if unusable or obsolete, will try again next cycle."
                     )
                     connections[

@@ -284,3 +284,105 @@ def test_scheduler_cleans_up_stale_run_logs_on_boot(db):
     assert ScheduledTaskRunLog.objects.count() == 1
     assert ScheduledTaskRunLog.objects.filter(pk=current_log.pk).exists()
     assert not ScheduledTaskRunLog.objects.filter(pk=stale_log.pk).exists()
+
+
+# --- Disabled code-defined task tests ---
+
+
+def test_disabled_code_defined_task_not_executed(transactional_db):
+    import time
+    from django_tasks.backends.database.models import DBTaskResult
+
+    test_scheduler = TaskScheduler()
+    schedule = PeriodicSchedule(
+        task=tracking_task,
+        period=timedelta(milliseconds=50),
+        task_args=("disabled_test",),
+    )
+    test_scheduler.add_scheduled_task(schedule)
+
+    # Create a disabled run log for this schedule
+    ScheduledTaskRunLog.objects.create(
+        task_hash=schedule.to_sha_bytes(),
+        enabled=False,
+        next_scheduled_run_time=timezone.now() - timedelta(seconds=1),
+    )
+
+    shutdown_event = threading.Event()
+    loop_interval = timedelta(milliseconds=10)
+
+    thread = threading.Thread(
+        target=test_scheduler.run_scheduling_loop,
+        args=(shutdown_event, loop_interval),
+    )
+    thread.start()
+
+    try:
+        time.sleep(0.1)
+        # Task should NOT execute because it's disabled
+        assert DBTaskResult.objects.count() == 0
+    finally:
+        shutdown_event.set()
+        thread.join(timeout=1)
+
+
+def test_task_metadata_populated_on_run(transactional_db):
+    import time
+    from django_tasks.backends.database.models import DBTaskResult
+
+    test_scheduler = TaskScheduler()
+    schedule = PeriodicSchedule(
+        task=tracking_task,
+        period=timedelta(seconds=60),
+        task_args=("metadata_test",),
+    )
+    test_scheduler.add_scheduled_task(schedule)
+
+    shutdown_event = threading.Event()
+    loop_interval = timedelta(milliseconds=10)
+
+    thread = threading.Thread(
+        target=test_scheduler.run_scheduling_loop,
+        args=(shutdown_event, loop_interval),
+    )
+    thread.start()
+
+    try:
+        time.sleep(0.05)
+        assert DBTaskResult.objects.count() == 1
+
+        run_log = ScheduledTaskRunLog.objects.get(task_hash=schedule.to_sha_bytes())
+        assert run_log.task_name == "tests.test_task_scheduler.tracking_task"
+        assert run_log.schedule_type == "PeriodicSchedule"
+        assert run_log.schedule_description == "every 1 minute"
+        assert run_log.enabled is True
+    finally:
+        shutdown_event.set()
+        thread.join(timeout=1)
+
+
+# --- Schedule description tests ---
+
+
+def test_periodic_schedule_description():
+    schedule = PeriodicSchedule(task=foo, period=timedelta(seconds=30))
+    assert schedule.get_schedule_description() == "every 30 seconds"
+
+    schedule = PeriodicSchedule(task=foo, period=timedelta(minutes=5))
+    assert schedule.get_schedule_description() == "every 5 minutes"
+
+    schedule = PeriodicSchedule(task=foo, period=timedelta(hours=2))
+    assert schedule.get_schedule_description() == "every 2 hours"
+
+    schedule = PeriodicSchedule(task=foo, period=timedelta(days=1))
+    assert schedule.get_schedule_description() == "every 1 day"
+
+
+def test_cron_schedule_description():
+    schedule = CrontabSchedule(task=foo, cron_schedule="0 9 * * *")
+    assert schedule.get_schedule_description() == "0 9 * * *"
+
+    schedule = CrontabSchedule(
+        task=foo, cron_schedule="0 9 * * *", timezone_str="Europe/Brussels"
+    )
+    assert schedule.get_schedule_description() == "0 9 * * * (Europe/Brussels)"
