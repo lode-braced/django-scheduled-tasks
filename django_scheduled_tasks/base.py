@@ -111,7 +111,7 @@ class PeriodicSchedule(TaskSchedule):
             return f"every {total_seconds} seconds"
         elif total_seconds < 3600:
             minutes = total_seconds // 60
-            return f"every {minutes} minute{'s' if minutes != 1 else ''}"
+            return f"every {minutes} minute{'' if minutes == 1 else 's'}"
         elif total_seconds < 86400:
             hours = total_seconds // 3600
             return f"every {hours} hour{'s' if hours != 1 else ''}"
