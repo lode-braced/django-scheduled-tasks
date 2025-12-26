@@ -226,7 +226,7 @@ class TaskScheduler:
                     schedule_description=schedule_description,
                 )
         elif next_scheduled <= now:
-            logger.info(f"Enqueing task {schedule.task}, is/was due {next_scheduled}.")
+            logger.info(f"Enqueuing task {schedule.task}, is/was due {next_scheduled}.")
             task_result = self._enqueue_task(schedule)
             new_next = schedule.get_next_scheduled_time(next_scheduled, now)
             ScheduledTaskRunLog.create_or_update_run_log(
