@@ -4,34 +4,39 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_scheduled_tasks', '0002_scheduledtaskrunlog_last_scheduled_run_time_and_more'),
+        (
+            "django_scheduled_tasks",
+            "0002_scheduledtaskrunlog_last_scheduled_run_time_and_more",
+        ),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='scheduledtaskrunlog',
-            options={'verbose_name': 'Scheduled task', 'verbose_name_plural': 'Scheduled tasks'},
+            name="scheduledtaskrunlog",
+            options={
+                "verbose_name": "Scheduled task",
+                "verbose_name_plural": "Scheduled tasks",
+            },
         ),
         migrations.AddField(
-            model_name='scheduledtaskrunlog',
-            name='enabled',
+            model_name="scheduledtaskrunlog",
+            name="enabled",
             field=models.BooleanField(default=True),
         ),
         migrations.AddField(
-            model_name='scheduledtaskrunlog',
-            name='schedule_description',
-            field=models.CharField(blank=True, default='', max_length=255),
+            model_name="scheduledtaskrunlog",
+            name="schedule_description",
+            field=models.CharField(blank=True, default="", max_length=255),
         ),
         migrations.AddField(
-            model_name='scheduledtaskrunlog',
-            name='schedule_type',
-            field=models.CharField(blank=True, default='', max_length=50),
+            model_name="scheduledtaskrunlog",
+            name="schedule_type",
+            field=models.CharField(blank=True, default="", max_length=50),
         ),
         migrations.AddField(
-            model_name='scheduledtaskrunlog',
-            name='task_name',
-            field=models.CharField(blank=True, default='', max_length=255),
+            model_name="scheduledtaskrunlog",
+            name="task_name",
+            field=models.CharField(blank=True, default="", max_length=255),
         ),
     ]
