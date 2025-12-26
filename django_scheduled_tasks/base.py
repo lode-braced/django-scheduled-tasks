@@ -114,10 +114,10 @@ class PeriodicSchedule(TaskSchedule):
             return f"every {minutes} minute{'' if minutes == 1 else 's'}"
         elif total_seconds < 86400:
             hours = total_seconds // 3600
-            return f"every {hours} hour{'s' if hours != 1 else ''}"
+            return f"every {hours} hour{'' if hours == 1 else 's'}"
         else:
             days = total_seconds // 86400
-            return f"every {days} day{'s' if days != 1 else ''}"
+            return f"every {days} day{'' if days == 1 else 's'}"
 
 
 class CrontabSchedule(TaskSchedule):
