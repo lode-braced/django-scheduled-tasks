@@ -1,5 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
+from .base import scheduler
 from .models import ScheduledTaskRunLog
 
 
@@ -19,6 +20,7 @@ class ScheduledTaskRunLogAdmin(admin.ModelAdmin):
     search_fields = ["task_name"]
     list_editable = ["enabled"]
     ordering = ["task_name"]
+    actions = ["run_task_now"]
 
     readonly_fields = [
         "task_hash_display",
@@ -74,3 +76,34 @@ class ScheduledTaskRunLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    @admin.action(description="Run selected tasks now")
+    def run_task_now(self, request, queryset):
+        # Build a lookup of task_hash -> schedule from the global scheduler
+        schedule_by_hash = {
+            schedule.to_sha_bytes(): schedule for schedule in scheduler.schedules
+        }
+
+        enqueued = 0
+        not_found = 0
+
+        for run_log in queryset:
+            schedule = schedule_by_hash.get(bytes(run_log.task_hash))
+            if schedule:
+                schedule.task.enqueue(*schedule.task_args, **schedule.task_kwargs)
+                enqueued += 1
+            else:
+                not_found += 1
+
+        if enqueued:
+            self.message_user(
+                request,
+                f"Enqueued {enqueued} task(s).",
+                messages.SUCCESS,
+            )
+        if not_found:
+            self.message_user(
+                request,
+                f"{not_found} task(s) not found in scheduler (may not be registered).",
+                messages.WARNING,
+            )
