@@ -4,12 +4,15 @@ on: [ push ]
 jobs:
   run_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: 'auto'
