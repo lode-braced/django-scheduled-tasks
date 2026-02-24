@@ -162,7 +162,7 @@ def get_run_logs(
     from .models import ScheduledTaskRunLog
 
     run_logs = ScheduledTaskRunLog.objects.filter(task_hash__in=task_hash_map.keys())
-    run_log_map = {task_hash_map[run.task_hash]: run for run in run_logs}
+    run_log_map = {task_hash_map[bytes(run.task_hash)]: run for run in run_logs}
     return {schedule: run_log_map.get(schedule) for schedule in task_schedules}
 
 
