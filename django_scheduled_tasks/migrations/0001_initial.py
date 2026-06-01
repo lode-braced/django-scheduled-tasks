@@ -21,12 +21,34 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("task_hash", models.BinaryField(max_length=32, unique=True)),
+                ("task_hash", models.CharField(max_length=64, unique=True)),
                 ("last_run_time", models.DateTimeField(blank=True, null=True)),
                 (
                     "last_run_task_id",
                     models.CharField(blank=True, max_length=64, null=True),
                 ),
+                (
+                    "last_scheduled_run_time",
+                    models.DateTimeField(blank=True, null=True),
+                ),
+                (
+                    "next_scheduled_run_time",
+                    models.DateTimeField(blank=True, null=True),
+                ),
+                ("enabled", models.BooleanField(default=True)),
+                (
+                    "schedule_description",
+                    models.CharField(blank=True, default="", max_length=255),
+                ),
+                (
+                    "schedule_type",
+                    models.CharField(blank=True, default="", max_length=50),
+                ),
+                ("task_name", models.CharField(blank=True, default="", max_length=255)),
             ],
+            options={
+                "verbose_name": "Scheduled task",
+                "verbose_name_plural": "Scheduled tasks",
+            },
         ),
     ]

@@ -15,7 +15,7 @@ class ScheduledTaskRunLog(models.Model):
     """
 
     # task data, args, and schedule, stored as a sha 256 hash of the total.
-    task_hash = models.BinaryField(max_length=32, unique=True)
+    task_hash = models.CharField(max_length=64, unique=True)
     last_run_time = models.DateTimeField(null=True, blank=True)
     last_scheduled_run_time = models.DateTimeField(null=True, blank=True)
     next_scheduled_run_time = models.DateTimeField(null=True, blank=True)
@@ -32,7 +32,7 @@ class ScheduledTaskRunLog(models.Model):
         verbose_name_plural = "Scheduled tasks"
 
     def __str__(self) -> str:
-        return self.task_name or f"Task {self.task_hash.hex()[:8]}"
+        return self.task_name or f"Task {self.task_hash[:8]}"
 
     @classmethod
     def create_or_update_run_log(
@@ -63,6 +63,6 @@ class ScheduledTaskRunLog(models.Model):
             defaults["schedule_description"] = schedule_description
 
         return cls.objects.update_or_create(
-            task_hash=task_schedule.to_sha_bytes(),
+            task_hash=task_schedule.to_sha_hex(),
             defaults=defaults,
         )[0]
