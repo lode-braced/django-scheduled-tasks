@@ -10,21 +10,32 @@ def binary_to_hex(apps, schema_editor):
     )
     for record in ScheduledTaskRunLog.objects.all():
         raw = record.task_hash
-        if raw is not None:
+        if raw is None:
+            continue
+        # New installs already have a hex CharField — nothing to convert
+        if isinstance(raw, str):
+            record.task_hash_char = raw
+        else:
             # BinaryField returns a memoryview; convert to hex string
             record.task_hash_char = bytes(raw).hex()
-            record.save(update_fields=["task_hash_char"])
+        record.save(update_fields=["task_hash_char"])
 
 
 def hex_to_binary(apps, schema_editor):
     ScheduledTaskRunLog = apps.get_model(
         "django_scheduled_tasks", "ScheduledTaskRunLog"
     )
+    # Detect whether task_hash is a BinaryField or CharField in the current state
+    task_hash_field = ScheduledTaskRunLog._meta.get_field("task_hash")
+    is_binary = task_hash_field.get_internal_type() == "BinaryField"
+
     for record in ScheduledTaskRunLog.objects.all():
         hex_val = record.task_hash_char
-        if hex_val:
-            record.task_hash = bytes.fromhex(hex_val)
-            record.save(update_fields=["task_hash"])
+        if not hex_val:
+            continue
+        # Old installs reverse to a BinaryField; new installs reverse to a CharField
+        record.task_hash = bytes.fromhex(hex_val) if is_binary else hex_val
+        record.save(update_fields=["task_hash"])
 
 
 class Migration(migrations.Migration):
