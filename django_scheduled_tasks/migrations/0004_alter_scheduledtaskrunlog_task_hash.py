@@ -53,20 +53,26 @@ class Migration(migrations.Migration):
             name="task_hash_char",
             field=models.CharField(max_length=64, null=True, blank=True),
         ),
-        # 2. Copy binary → hex into the temp column
+        # 2. Reverse must repopulate task_hash before making it non-null again
+        migrations.AlterField(
+            model_name="scheduledtaskrunlog",
+            name="task_hash",
+            field=models.CharField(max_length=64, unique=True, null=True),
+        ),
+        # 3. Copy binary → hex into the temp column
         migrations.RunPython(binary_to_hex, reverse_code=hex_to_binary),
-        # 3. Drop the old BinaryField
+        # 4. Drop the old BinaryField
         migrations.RemoveField(
             model_name="scheduledtaskrunlog",
             name="task_hash",
         ),
-        # 4. Rename the temp column to task_hash
+        # 5. Rename the temp column to task_hash
         migrations.RenameField(
             model_name="scheduledtaskrunlog",
             old_name="task_hash_char",
             new_name="task_hash",
         ),
-        # 5. Apply the final constraints (unique, not null)
+        # 6. Apply the final constraints (unique, not null)
         migrations.AlterField(
             model_name="scheduledtaskrunlog",
             name="task_hash",
