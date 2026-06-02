@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
             fields=[
                 (
                     "id",
-                    models.AutoField(
+                    models.BigAutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
@@ -27,28 +27,6 @@ class Migration(migrations.Migration):
                     "last_run_task_id",
                     models.CharField(blank=True, max_length=64, null=True),
                 ),
-                (
-                    "last_scheduled_run_time",
-                    models.DateTimeField(blank=True, null=True),
-                ),
-                (
-                    "next_scheduled_run_time",
-                    models.DateTimeField(blank=True, null=True),
-                ),
-                ("enabled", models.BooleanField(default=True)),
-                (
-                    "schedule_description",
-                    models.CharField(blank=True, default="", max_length=255),
-                ),
-                (
-                    "schedule_type",
-                    models.CharField(blank=True, default="", max_length=50),
-                ),
-                ("task_name", models.CharField(blank=True, default="", max_length=255)),
             ],
-            options={
-                "verbose_name": "Scheduled task",
-                "verbose_name_plural": "Scheduled tasks",
-            },
         ),
     ]
