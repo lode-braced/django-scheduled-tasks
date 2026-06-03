@@ -236,7 +236,7 @@ def test_run_task_loop(transactional_db):
         # Task should execute immediately (no previous run)
         time.sleep(0.05)
         assert DBTaskResult.objects.count() == 1
-        run_log = ScheduledTaskRunLog.objects.get(task_hash=schedule.to_sha_bytes())
+        run_log = ScheduledTaskRunLog.objects.get(task_hash=schedule.to_sha_hex())
         first_run_time = run_log.last_run_time
 
         # Wait less than the period - no new run should occur
@@ -266,11 +266,11 @@ def test_scheduler_cleans_up_stale_run_logs_on_boot(db):
 
     # Create a run log for the current schedule
     current_log = ScheduledTaskRunLog.objects.create(
-        task_hash=schedule.to_sha_bytes(),
+        task_hash=schedule.to_sha_hex(),
         last_run_time=timezone.now(),
     )
     # Create a stale run log for a schedule that no longer exists
-    stale_hash = b"\x00" * 32
+    stale_hash = "00" * 32
     stale_log = ScheduledTaskRunLog.objects.create(
         task_hash=stale_hash,
         last_run_time=timezone.now(),
@@ -303,7 +303,7 @@ def test_disabled_code_defined_task_not_executed(transactional_db):
 
     # Create a disabled run log for this schedule
     ScheduledTaskRunLog.objects.create(
-        task_hash=schedule.to_sha_bytes(),
+        task_hash=schedule.to_sha_hex(),
         enabled=False,
         next_scheduled_run_time=timezone.now() - timedelta(seconds=1),
     )
@@ -351,7 +351,7 @@ def test_task_metadata_populated_on_run(transactional_db):
         time.sleep(0.05)
         assert DBTaskResult.objects.count() == 1
 
-        run_log = ScheduledTaskRunLog.objects.get(task_hash=schedule.to_sha_bytes())
+        run_log = ScheduledTaskRunLog.objects.get(task_hash=schedule.to_sha_hex())
         assert run_log.task_name == "tests.test_task_scheduler.tracking_task"
         assert run_log.schedule_type == "PeriodicSchedule"
         assert run_log.schedule_description == "every 1 minute"
