@@ -72,6 +72,9 @@ class TaskSchedule(BaseModel, abc.ABC):
             self.model_dump_json(round_trip=False).encode("utf-8")
         ).digest()
 
+    def to_sha_hex(self) -> str:
+        return self.to_sha_bytes().hex()
+
     def __hash__(self) -> int:
         return hash(self.to_sha_bytes())
 
@@ -156,13 +159,13 @@ class CrontabSchedule(TaskSchedule):
 def get_run_logs(
     task_schedules: set[TaskSchedule],
 ) -> dict[TaskSchedule, "ScheduledTaskRunLog | None"]:
-    task_hash_map: dict[bytes, TaskSchedule] = {
-        task.to_sha_bytes(): task for task in task_schedules
+    task_hash_map: dict[str, TaskSchedule] = {
+        task.to_sha_hex(): task for task in task_schedules
     }
     from .models import ScheduledTaskRunLog
 
     run_logs = ScheduledTaskRunLog.objects.filter(task_hash__in=task_hash_map.keys())
-    run_log_map = {task_hash_map[bytes(run.task_hash)]: run for run in run_logs}
+    run_log_map = {task_hash_map[run.task_hash]: run for run in run_logs}
     return {schedule: run_log_map.get(schedule) for schedule in task_schedules}
 
 
@@ -176,7 +179,7 @@ class TaskScheduler:
     def _cleanup_stale_run_logs(self) -> int:
         from .models import ScheduledTaskRunLog
 
-        known_hashes = [schedule.to_sha_bytes() for schedule in self.schedules]
+        known_hashes = [schedule.to_sha_hex() for schedule in self.schedules]
         deleted, _ = ScheduledTaskRunLog.objects.exclude(
             task_hash__in=known_hashes
         ).delete()

@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("task_hash", models.BinaryField(max_length=32, unique=True)),
+                ("task_hash", models.CharField(max_length=64, unique=True)),
                 ("last_run_time", models.DateTimeField(blank=True, null=True)),
                 (
                     "last_run_task_id",

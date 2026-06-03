@@ -67,7 +67,7 @@ class ScheduledTaskRunLogAdmin(admin.ModelAdmin):
     ]
 
     def task_hash_display(self, obj):
-        return obj.task_hash.hex()
+        return obj.task_hash
 
     task_hash_display.short_description = "Task hash"
 
@@ -81,14 +81,14 @@ class ScheduledTaskRunLogAdmin(admin.ModelAdmin):
     def run_task_now(self, request, queryset):
         # Build a lookup of task_hash -> schedule from the global scheduler
         schedule_by_hash = {
-            schedule.to_sha_bytes(): schedule for schedule in scheduler.schedules
+            schedule.to_sha_hex(): schedule for schedule in scheduler.schedules
         }
 
         enqueued = 0
         not_found = 0
 
         for run_log in queryset:
-            schedule = schedule_by_hash.get(bytes(run_log.task_hash))
+            schedule = schedule_by_hash.get(run_log.task_hash)
             if schedule:
                 schedule.task.enqueue(*schedule.task_args, **schedule.task_kwargs)
                 enqueued += 1
